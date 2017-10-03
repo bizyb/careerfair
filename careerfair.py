@@ -2,6 +2,7 @@ from bs4 import Beautifulsoup as bsoup
 import csv
 import json
 import random
+import re
 import requests
 from time import time
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) "
@@ -17,11 +18,8 @@ class CareerFair(object):
 	'''
 
 	def __init__(self, *args, **kwargs):
-		# base URL must be obtained by inspection, i.e. from  the AJAX 
-		# request excluding pagination. NB: the uid in the url could be
-		# session-specific; adjust accordingly
 		self.landing_url = kwargs.get('base')
-		self.ajax_base = kwargs.get('ajax')
+		# self.ajax_base = kwargs.get('ajax')
 		self.major = kwargs.get('major')
 		self.headers = self._set_header()
 		
@@ -150,3 +148,29 @@ class CareerFair(object):
 
 	def _build_url():
 		pass
+
+	def _build_ajax_base():
+		'''
+		Parse out session-specific uid from the landing url and build 
+		the base url for ajax requests. 
+
+		Base url format: 'https://viterbi-usc-csm.symplicity.com/events/
+								c495591c0cb4d00420fb15c629163e76/employers'
+		session_uid: c495591c0cb4d00420fb15c629163
+		'''
+		UID_LENGTH = 32
+		ajax_base = ''
+		pattern = '\w+['+UID_LENGTH+']'
+		session_uid = re.findall(pattern, url)
+		if session_uid:
+			session_uid = session_uid[0]
+			prefix = 'https://viterbi-usc-csm.symplicity.com/api/v2/'
+			prefix += 'eventRegistration?approved=1&event='
+			suffix = session_uid + '&id=' + session_uid
+			ajax_base = prefix + suffix
+		
+		return ajax_base
+
+
+
+
