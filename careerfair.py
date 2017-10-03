@@ -1,4 +1,4 @@
-from bs4 import Beautifulsoup as bsoup
+# from bs4 import Beautifulsoup as bsoup
 import csv
 import json
 import random
@@ -19,13 +19,13 @@ class CareerFair(object):
 
 	def __init__(self, *args, **kwargs):
 		self.landing_url = kwargs.get('base')
+		self.result_count = kwargs.get('count')
 		self.major = kwargs.get('major')
 		self.headers = self._set_header()
-		
 
+		
 	def get_employers(self):
-		landing_page = self._get_request(self.landing_url)
-		page_count = self._get_pagination(response)
+		page_count = self._get_pagination()
 		url_list = self._build_urls(page_count)
 		response_list = []
 		for url in url_list:
@@ -33,11 +33,9 @@ class CareerFair(object):
 			response_list.append(response)
 			time.sleep(3) # 3-second throttle
 
-	def _get_pagination(self, response):
-		soup = bsoup(response.text, 'lxml')
-		interval = soup selector here
-		employer_count = soup selector here
-		num_pages = employer_count/interval
+	def _get_pagination(self):
+		RESULTS_PER_PAGE = 20
+		num_pages = self.result_count/RESULTS_PER_PAGE
 		if employer_count % interval != 0:
 			num_pages += 1
 		return num_pages
@@ -156,7 +154,7 @@ class CareerFair(object):
 		for i in range(page_count):
 			random.shuffle(url_list)
 
-		return url_list
+		return url_list[:1]
 
 	def _build_ajax_base():
 		'''
@@ -178,9 +176,76 @@ class CareerFair(object):
 			prefix += 'eventRegistration?approved=1&event='
 			suffix = session_uid + '&id=' + session_uid
 			ajax_base = prefix + suffix
-			
+
 		return ajax_base
 
+
+'''
+Execution: python careerfair.py example.com 168 --major chemical_engineering
+		example.com: landing page (required)
+		168:  result count (required)
+		chemical_engineering:  major (optional)
+
+		Landing page example: 'https://viterbi-usc-csm.symplicity.com/events/
+								c495591c0cb4d00420fb15c629163e76/employers'
+'''
+def add_arguments(parser):
+	help = 'Provide url, result count, and optional department or major. If'
+	help += ' no major is provided, unfiltered results will be outputted.'
+	help_m = 'Please provide a major. Replace any multi-word names with an '
+	help_m += 'underscore. If more than one major is provided, only the '
+	help_m += 'first one will be considered.'
+
+	arguments = [
+			{
+				'argument': 'base',
+				'settings': {
+					'nargs': '+',
+					'type': str,
+					'help': help,
+				}
+			},
+			{
+				'argument': 'count',
+				'settings': {
+					'nargs': '+',
+					'type': str,
+				}
+			},
+			{
+				'argument': '--major',
+				'settings': {
+					'nargs': '+',
+					'type': str,
+					'help': help_m,
+				}
+			}
+	]
+	for arg_dict in arguments:
+		arg = arg_dict.get('argument')
+		settings = arg_dict.get('settings')
+		parser.add_argument(arg, **settings)
+	return parser
+
+def parse_arguments(parser):
+	args = parser.parse_args()
+	base, count, major = args.base, args.count, args.major
+	kwargs = {
+			'base': base[0],
+			'count': count[0],
+			'major': None,
+	}
+	if major:
+		kwargs['major'] = major[0]
+	return kwargs
+
+
+import argparse
+parser = argparse.ArgumentParser(description='Career fair employers by major')
+parser = add_arguments(parser)
+kwargs = parse_arguments(parser)
+cf = CareerFair(**kwargs)
+cf.get_employers()
 
 
 
