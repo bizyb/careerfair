@@ -1,14 +1,10 @@
-# from bs4 import Beautifulsoup as bsoup
+
 import csv
 import json
 import random
 import re
 import requests
-from time import time
-USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) "
-USER_AGENT += "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.113 "
-USER_AGENT += "Safari/537.36"
-
+import time
 
 class CareerFair(object):
 	'''
@@ -22,6 +18,8 @@ class CareerFair(object):
 		self.result_count = kwargs.get('count')
 		self.major = kwargs.get('major')
 		self.headers = self._set_header()
+		if self.major:
+			self.major = self.major.replace('_', ' ').lower()
 
 		
 	def get_employers(self):
@@ -31,12 +29,13 @@ class CareerFair(object):
 		for url in url_list:
 			response = self._get_request(url)
 			response_list.append(response)
-			time.sleep(3) # 3-second throttle
+			time.sleep(5) # a 5-second delay
+		self._parse_json(response_list)
 
 	def _get_pagination(self):
 		RESULTS_PER_PAGE = 20
 		num_pages = self.result_count/RESULTS_PER_PAGE
-		if employer_count % interval != 0:
+		if self.result_count % RESULTS_PER_PAGE != 0:
 			num_pages += 1
 		return num_pages
 
@@ -54,43 +53,49 @@ class CareerFair(object):
 		all_employers = []
 		for response in responses:
 			try:
-				raw_json = json.loads(response.text)
-				models_list = raw_json.get('models') 
+				models_list = responses.json().get('models') 
 				for data in models_list:
 					employer_dict = {
-						'name': data.get('name'),
+						'company': data.get('name'),
 						'positions': self._parse_list(data.get('position_types'), pos=True),
 						'degrees': self._parse_list(data.get('degree_level'), degrees=True),
-						'majors': self._parse_list(data.get('major'), majors=True),
-						'description': data.get('overview'),
+						'majors': self._parse_list(data.get('majors'), majors=True),
+						'description': data.get('overview').encode('utf-8'),
 					}
-					# only add employer data for the requested major
-					if self.major in majors.get('majors'):
+					if self._major_exists(employer_dict):
 						filtered_employers.append(employer_dict)
 
 					# unfiltered
 					all_employers.append(employer_dict)
-
 			except Exception as e:
 				msg = '{}: {}'.format(type(e).__name__, e.args[0])
 				print msg
 
 		self._save_to_csv(filtered_employers, filtered=True)
-		self._save_to_csv(all_employers, filtered=False)
+		self._save_to_csv(all_employers)
+
+	def _major_exists(self, employer_dict):
+		majors = employer_dict.get('majors')
+		if self.major and self.major in majors.lower():
+			return True
+		return False
+
 
 	def _save_to_csv(self, data, filtered=False):
 		filename = 'usc_viterbi_careerfair_unfiltered.csv'
 		if filtered:
-			filename.replace('unfiltered', 'filtered_{}'.format(self.major))
+			major = self.major.replace(' ', '_')
+			filename = filename.replace('unfiltered', 'filtered_{}'.format(major))
 
 		# build field names	
-		fields = data[0].keys()
+		fields = sorted(data[0].keys())
 
 		with open(filename, 'w') as csv_out:
 			writer = csv.DictWriter(csv_out, fieldnames=fields)
 			writer.writeheader()
 			for row_dict in data:
 				writer.writerow(row_dict)
+
 		msg = 'Outputted file with name={}\n'.format(filename)
 		print msg
 
@@ -132,31 +137,35 @@ class CareerFair(object):
 				data_dict[key] += ', ' + ld.get('_label')
 			else:
 				data_dict[key] = ld.get('_label')
-		return data_dict
+		return data_dict.get(key)
 
 	def _get_request(self, url):
 		params = {'headers': self.headers}
 		response = requests.get(self.landing_url, **params)
+		return response
 	
 	def _set_header(self):
+		USER_AGENT = "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36"
+		USER_AGENT += " (KHTML, like Gecko) Chrome/40.0.2214.85 Safari/537.36"
 		headers = requests.utils.default_headers()
 		headers.update({'User-Agent': USER_AGENT})
 		return headers
 
-	def _build_url(page_count):
+	def _build_urls(self, page_count):
 
-		ajax_base = _build_ajax_base()
+		ajax_base = self._build_ajax_base()
 		url_list = []
 		for i in range(page_count):
-			url = ajax_base + '&page=' + i + 1
-			url_list.append(url_list)
+			# ?js_disabled=1 is redundant; there's no js in the ajax response
+			# but it's required due to accessibility issues
+			url = '{}{}{}{}'.format(ajax_base, '&page=', i + 1, '?js_disabled=1')
+			url_list.append(url)
 
 		for i in range(page_count):
 			random.shuffle(url_list)
+		return url_list
 
-		return url_list[:1]
-
-	def _build_ajax_base():
+	def _build_ajax_base(self):
 		'''
 		Parse out session-specific uid from the landing url and build 
 		the base url for ajax requests. 
@@ -167,9 +176,8 @@ class CareerFair(object):
 		'''
 		UID_LENGTH = 32
 		ajax_base = ''
-		pattern = '\w+['+UID_LENGTH+']'
+		pattern = '{}{}{}'.format('\w{', UID_LENGTH, '}')
 		session_uid = re.findall(pattern, self.landing_url)
-
 		if session_uid:
 			session_uid = session_uid[0]
 			prefix = 'https://viterbi-usc-csm.symplicity.com/api/v2/'
@@ -232,7 +240,7 @@ def parse_arguments(parser):
 	base, count, major = args.base, args.count, args.major
 	kwargs = {
 			'base': base[0],
-			'count': count[0],
+			'count': int(count[0]),
 			'major': None,
 	}
 	if major:
