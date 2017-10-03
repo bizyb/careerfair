@@ -19,7 +19,6 @@ class CareerFair(object):
 
 	def __init__(self, *args, **kwargs):
 		self.landing_url = kwargs.get('base')
-		# self.ajax_base = kwargs.get('ajax')
 		self.major = kwargs.get('major')
 		self.headers = self._set_header()
 		
@@ -27,7 +26,7 @@ class CareerFair(object):
 	def get_employers(self):
 		landing_page = self._get_request(self.landing_url)
 		page_count = self._get_pagination(response)
-		url_list = self._build_urls()
+		url_list = self._build_urls(page_count)
 		response_list = []
 		for url in url_list:
 			response = self._get_request(url)
@@ -146,8 +145,18 @@ class CareerFair(object):
 		headers.update({'User-Agent': USER_AGENT})
 		return headers
 
-	def _build_url():
-		pass
+	def _build_url(page_count):
+
+		ajax_base = _build_ajax_base()
+		url_list = []
+		for i in range(page_count):
+			url = ajax_base + '&page=' + i + 1
+			url_list.append(url_list)
+
+		for i in range(page_count):
+			random.shuffle(url_list)
+
+		return url_list
 
 	def _build_ajax_base():
 		'''
@@ -161,14 +170,15 @@ class CareerFair(object):
 		UID_LENGTH = 32
 		ajax_base = ''
 		pattern = '\w+['+UID_LENGTH+']'
-		session_uid = re.findall(pattern, url)
+		session_uid = re.findall(pattern, self.landing_url)
+
 		if session_uid:
 			session_uid = session_uid[0]
 			prefix = 'https://viterbi-usc-csm.symplicity.com/api/v2/'
 			prefix += 'eventRegistration?approved=1&event='
 			suffix = session_uid + '&id=' + session_uid
 			ajax_base = prefix + suffix
-		
+			
 		return ajax_base
 
 
