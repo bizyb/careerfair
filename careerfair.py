@@ -9,8 +9,7 @@ import time
 class CareerFair(object):
 	'''
 	Parses and outputs employer names and descriptions from the Viterbi Career 
-	Gateway for a given major. Currently, it's not possible to sort the search 
-	results by industry or major. This should fix that problem. 
+	Gateway for a given major. 
 	'''
 
 	def __init__(self, *args, **kwargs):
